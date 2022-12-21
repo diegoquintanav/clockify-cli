@@ -25,6 +25,7 @@ const (
 	CONF_LOG_LEVEL             = "log-level"
 	CONF_ALLOW_ARCHIVED_TAGS   = "allow-archived-tags"
 	CONF_INTERACTIVE_PAGE_SIZE = "interactive-page-size"
+	CONF_TIME_ENTRY_DEFAULTS   = "time-entry-defaults"
 )
 
 const (
