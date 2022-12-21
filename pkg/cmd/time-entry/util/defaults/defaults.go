@@ -60,12 +60,14 @@ func (s *ScanError) Unwrap() error {
 // DefaultsFileNotFoundErr is returned when the scan can't find any files
 var DefaultsFileNotFoundErr = errors.New("defaults file not found")
 
+const DEFAULT_FILENAME = ".clockify-defaults"
+
 // ScanForDefaults scan the directory informed and its parents for the defaults
 // file
 func ScanForDefaults(p ScanParam) func() (DefaultTimeEntry, error) {
 	return func() (DefaultTimeEntry, error) {
 		if p.Filename == "" {
-			p.Filename = ".clockify-defaults"
+			p.Filename = DEFAULT_FILENAME
 		}
 
 		dir := filepath.FromSlash(p.Dir)
