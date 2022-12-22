@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
 	"github.com/lucassabreu/clockify-cli/strhlp"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -27,9 +28,35 @@ type ScanParam struct {
 	Filename string
 }
 
-// WriteDefaults persists the default values to a file
-func WriteDefaults(dir, filename string, d DefaultTimeEntry) error {
-	n := filepath.Join(dir, filename)
+// TimeEntryDefaults is a manager for the default time entry parameters on a
+// folder
+type TimeEntryDefaults interface {
+	// Read scan the directory informed and its parents for the defaults
+	// file
+	Read() (DefaultTimeEntry, error)
+	// Write persists the default values to the folder
+	Write(DefaultTimeEntry) error
+}
+
+// NewTimeEntryDefaults creates a new instance of TimeEntryDefaults
+func NewTimeEntryDefaults(p ScanParam) TimeEntryDefaults {
+	return nil
+}
+
+type timeEntryDefaults struct {
+	ScanParam
+	DefaultTimeEntry
+}
+
+// Read scan the directory informed and its parents for the defaults
+// file
+func (t *timeEntryDefaults) Read() (defaults.DefaultTimeEntry, error) {
+	panic("not implemented") // TODO: Implement
+}
+
+// Write persists the default values to the folder
+func (t *timeEntryDefaults) Write(_ defaults.DefaultTimeEntry) error {
+	n := filepath.Join(t.Dir, t.Filename)
 	f, err := os.OpenFile(n, os.O_CREATE|os.O_RDWR, os.ModePerm)
 	if err != nil {
 		return err
@@ -40,6 +67,9 @@ func WriteDefaults(dir, filename string, d DefaultTimeEntry) error {
 	}
 
 	return yaml.NewEncoder(f).Encode(d)
+}
+
+func WriteDefaults(dir, filename string, d DefaultTimeEntry) error {
 }
 
 // ScanError wraps errors from scanning for the defaults file
@@ -62,8 +92,6 @@ var DefaultsFileNotFoundErr = errors.New("defaults file not found")
 
 const DEFAULT_FILENAME = ".clockify-defaults"
 
-// ScanForDefaults scan the directory informed and its parents for the defaults
-// file
 func ScanForDefaults(p ScanParam) func() (DefaultTimeEntry, error) {
 	return func() (DefaultTimeEntry, error) {
 		if p.Filename == "" {

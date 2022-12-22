@@ -52,17 +52,17 @@ func TestWriteDefaults(t *testing.T) {
 		tt := &tts[i]
 		t.Run(tt.filename, func(t *testing.T) {
 			timeout(t, 6*time.Second, func() {
-				err := defaults.WriteDefaults(dir, tt.filename, tt.d)
+				f := strings.Split(tt.filename, ".")[0]
+				ted := defaults.NewTimeEntryDefaults(defaults.ScanParam{
+					Dir:      dir,
+					Filename: f,
+				})
+				err := ted.Write(tt.d)
 				if !assert.NoError(t, err) {
 					return
 				}
 
-				f := strings.Split(tt.filename, ".")[0]
-
-				r, err := defaults.ScanForDefaults(defaults.ScanParam{
-					Dir:      dir,
-					Filename: f,
-				})()
+				r, err := ted.Read()
 
 				assert.NoError(t, err)
 				assert.Equal(t, tt.d, r)
@@ -75,7 +75,11 @@ func TestWriteDefaults_ShouldFail_WhenPermAreMissing(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.Chmod(dir, 0444)
 	timeout(t, 5*time.Second, func() {
-		err := defaults.WriteDefaults(dir, "fail", defaults.DefaultTimeEntry{})
+		ted := defaults.NewTimeEntryDefaults(defaults.ScanParam{
+			Dir:      dir,
+			Filename: "fail",
+		})
+		err := ted.Write(defaults.DefaultTimeEntry{})
 		assert.Error(t, err)
 	})
 }
@@ -136,10 +140,11 @@ func TestScanForDefaults_ShouldFail(t *testing.T) {
 		tt := &tts[i]
 		t.Run(tt.filename, func(t *testing.T) {
 			timeout(t, 5*time.Second, func() {
-				d, err := defaults.ScanForDefaults(defaults.ScanParam{
+				ted := defaults.NewTimeEntryDefaults(defaults.ScanParam{
 					Dir:      tt.dir,
 					Filename: tt.filename,
-				})()
+				})
+				d, err := ted.Read()
 
 				assert.Equal(t, d, defaults.DefaultTimeEntry{})
 				assert.Error(t, err)
@@ -237,7 +242,8 @@ func TestScanForDefaults_ShouldLookUpperDirs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			timeout(t, 1*time.Second, func() {
 				tt.param.Dir = path.Join(wd, tt.param.Dir)
-				d, _ := defaults.ScanForDefaults(tt.param)()
+				ted := defaults.NewTimeEntryDefaults(tt.param)
+				d, _ := ted.Read()
 				assert.Equal(t, tt.expected, d)
 			})
 		})
