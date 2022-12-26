@@ -4,7 +4,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -51,17 +50,20 @@ func TestWriteDefaults(t *testing.T) {
 	for i := range tts {
 		tt := &tts[i]
 		t.Run(tt.filename, func(t *testing.T) {
-			timeout(t, 6*time.Second, func() {
-				f := strings.Split(tt.filename, ".")[0]
+			timeout(t, 5*time.Second, func() {
 				ted := defaults.NewTimeEntryDefaults(defaults.ScanParam{
 					Dir:      dir,
-					Filename: f,
+					Filename: tt.filename,
 				})
 				err := ted.Write(tt.d)
-				if !assert.NoError(t, err) {
+				if !assert.NoError(t, err, "failed to write") {
 					return
 				}
 
+				ted = defaults.NewTimeEntryDefaults(defaults.ScanParam{
+					Dir:      dir,
+					Filename: tt.filename,
+				})
 				r, err := ted.Read()
 
 				assert.NoError(t, err)
@@ -121,12 +123,12 @@ func TestScanForDefaults_ShouldFail(t *testing.T) {
 		},
 		{
 			dir:      filepath.Join(wd, "test_data", "test_cur"),
-			filename: "not-right",
+			filename: "not-right.json",
 			err:      "invalid character",
 		},
 		{
 			dir:      dir,
-			filename: "not-open",
+			filename: "not-open.yaml",
 			err:      "permission denied",
 		},
 		{
@@ -169,7 +171,8 @@ func TestScanForDefaults_ShouldLookUpperDirs(t *testing.T) {
 		{
 			name: "test_cur",
 			param: defaults.ScanParam{
-				Dir: "./test_data/test_cur",
+				Dir:      "./test_data/test_cur",
+				Filename: ".clockify-defaults.yaml",
 			},
 			expected: defaults.DefaultTimeEntry{
 				Workspace:   "w",
@@ -183,7 +186,7 @@ func TestScanForDefaults_ShouldLookUpperDirs(t *testing.T) {
 			name: "test_cur, filename as defaults",
 			param: defaults.ScanParam{
 				Dir:      "./test_data/test_cur",
-				Filename: "defaults",
+				Filename: "defaults.json",
 			},
 			expected: defaults.DefaultTimeEntry{
 				Workspace:   "W",
@@ -195,7 +198,8 @@ func TestScanForDefaults_ShouldLookUpperDirs(t *testing.T) {
 		{
 			name: "down again",
 			param: defaults.ScanParam{
-				Dir: "./test_data/test_cur/down/again",
+				Dir:      "./test_data/test_cur/down/again",
+				Filename: ".clockify-defaults.yaml",
 			},
 			expected: defaults.DefaultTimeEntry{
 				Workspace:   "w",
@@ -209,7 +213,7 @@ func TestScanForDefaults_ShouldLookUpperDirs(t *testing.T) {
 			name: "down path, filename as defaults",
 			param: defaults.ScanParam{
 				Dir:      "./test_data/test_cur/down/again",
-				Filename: "defaults",
+				Filename: "defaults.json",
 			},
 			expected: defaults.DefaultTimeEntry{
 				Workspace:   "W",
@@ -221,7 +225,8 @@ func TestScanForDefaults_ShouldLookUpperDirs(t *testing.T) {
 		{
 			name: "test_incompl",
 			param: defaults.ScanParam{
-				Dir: "./test_data/test_incompl",
+				Dir:      "./test_data/test_incompl",
+				Filename: ".clockify-defaults.yaml",
 			},
 			expected: defaults.DefaultTimeEntry{
 				Workspace: "w",

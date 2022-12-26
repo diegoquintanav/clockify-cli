@@ -6,11 +6,29 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
-	"github.com/lucassabreu/clockify-cli/strhlp"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
+
+// ScanError wraps errors from scanning for the defaults file
+type ScanError struct {
+	Err error
+}
+
+// Error shows error message
+func (s *ScanError) Error() string {
+	return s.Unwrap().Error()
+}
+
+// Unwrap gives access to the error chain
+func (s *ScanError) Unwrap() error {
+	return s.Err
+}
+
+// DefaultsFileNotFoundErr is returned when the scan can't find any files
+var DefaultsFileNotFoundErr = errors.New("defaults file not found")
+
+const DEFAULT_FILENAME = ".clockify-defaults.json"
 
 // DefaultTimeEntry has the default properties for the working directory
 type DefaultTimeEntry struct {
@@ -40,7 +58,9 @@ type TimeEntryDefaults interface {
 
 // NewTimeEntryDefaults creates a new instance of TimeEntryDefaults
 func NewTimeEntryDefaults(p ScanParam) TimeEntryDefaults {
-	return nil
+	return &timeEntryDefaults{
+		ScanParam: p,
+	}
 }
 
 type timeEntryDefaults struct {
@@ -48,19 +68,14 @@ type timeEntryDefaults struct {
 	DefaultTimeEntry
 }
 
-// Read scan the directory informed and its parents for the defaults
-// file
-func (t *timeEntryDefaults) Read() (defaults.DefaultTimeEntry, error) {
-	panic("not implemented") // TODO: Implement
-}
-
 // Write persists the default values to the folder
-func (t *timeEntryDefaults) Write(_ defaults.DefaultTimeEntry) error {
-	n := filepath.Join(t.Dir, t.Filename)
-	f, err := os.OpenFile(n, os.O_CREATE|os.O_RDWR, os.ModePerm)
+func (t *timeEntryDefaults) Write(d DefaultTimeEntry) error {
+	println(filepath.Join(t.Dir, t.Filename))
+	f, err := os.Create(filepath.Join(t.Dir, t.Filename))
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	if strings.HasSuffix(f.Name(), "json") {
 		return json.NewEncoder(f).Encode(d)
@@ -69,101 +84,63 @@ func (t *timeEntryDefaults) Write(_ defaults.DefaultTimeEntry) error {
 	return yaml.NewEncoder(f).Encode(d)
 }
 
-func WriteDefaults(dir, filename string, d DefaultTimeEntry) error {
-}
+// Read scan the directory informed and its parents for the defaults
+// file
+func (t *timeEntryDefaults) Read() (DefaultTimeEntry, error) {
+	if t.ScanParam.Filename == "" {
+		t.ScanParam.Filename = DEFAULT_FILENAME
+	}
 
-// ScanError wraps errors from scanning for the defaults file
-type ScanError struct {
-	Err error
-}
-
-// Error shows error message
-func (s *ScanError) Error() string {
-	return s.Unwrap().Error()
-}
-
-// Unwrap gives access to the error chain
-func (s *ScanError) Unwrap() error {
-	return s.Err
-}
-
-// DefaultsFileNotFoundErr is returned when the scan can't find any files
-var DefaultsFileNotFoundErr = errors.New("defaults file not found")
-
-const DEFAULT_FILENAME = ".clockify-defaults"
-
-func ScanForDefaults(p ScanParam) func() (DefaultTimeEntry, error) {
-	return func() (DefaultTimeEntry, error) {
-		if p.Filename == "" {
-			p.Filename = DEFAULT_FILENAME
+	p := t.ScanParam
+	dir := filepath.FromSlash(p.Dir)
+	d := DefaultTimeEntry{}
+	for {
+		f, err := getFile(filepath.Join(dir, p.Filename))
+		if err != nil {
+			return d, &ScanError{
+				Err: errors.Wrap(
+					err, "failed to open defaults file"),
+			}
 		}
 
-		dir := filepath.FromSlash(p.Dir)
-		d := DefaultTimeEntry{}
-		for {
-			f, err := firstMatch(dir, p.Filename)
-			if err != nil {
-				return d, &ScanError{
-					Err: errors.Wrap(
-						err, "failed to open defaults file"),
-				}
+		if f == nil {
+			nDir := filepath.Dir(dir)
+			if nDir == dir {
+				return d, DefaultsFileNotFoundErr
 			}
 
-			if f == nil {
-				nDir := filepath.Dir(dir)
-				if nDir == dir {
-					return d, DefaultsFileNotFoundErr
-				}
-
-				dir = nDir
-				continue
-			}
-
-			if strings.HasSuffix(f.Name(), "json") {
-				err = json.NewDecoder(f).Decode(&d)
-			} else {
-				err = yaml.NewDecoder(f).Decode(&d)
-			}
-
-			if err != nil {
-				return d, &ScanError{
-					Err: errors.Wrap(
-						err, "failed to decode defaults file"),
-				}
-			}
-
-			return d, nil
+			dir = nDir
+			continue
 		}
+		defer f.Close()
+
+		if strings.HasSuffix(f.Name(), "json") {
+			err = json.NewDecoder(f).Decode(&d)
+		} else {
+			err = yaml.NewDecoder(f).Decode(&d)
+		}
+
+		if err != nil {
+			return d, errors.WithStack(&ScanError{
+				Err: errors.Wrap(
+					err, "failed to decode defaults file"),
+			})
+		}
+
+		return d, nil
 	}
 }
 
-func firstMatch(dir, filename string) (*os.File, error) {
-	ms, _ := filepath.Glob(filepath.Join(dir, filename+".*"))
-	if len(ms) == 0 {
+func getFile(filename string) (*os.File, error) {
+	stat, err := os.Stat(filepath.Join(filename))
+	if err != nil || stat.IsDir() {
 		return nil, nil
 	}
 
-	ms = strhlp.Filter(
-		func(s string) bool {
-			return strings.HasSuffix(s, ".json") ||
-				strings.HasSuffix(s, ".yml") ||
-				strings.HasSuffix(s, ".yaml")
-		},
-		ms,
-	)
-
-	for _, m := range ms {
-		entry, err := os.Open(m)
-		if err != nil {
-			return nil, err
-		}
-
-		s, err := entry.Stat()
-		if err != nil || s.IsDir() {
-			continue
-
-		}
-		return entry, nil
+	f, err := os.Open(filename)
+	if os.IsNotExist(err) {
+		return nil, nil
 	}
-	return nil, nil
+
+	return f, err
 }
