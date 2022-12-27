@@ -6,6 +6,8 @@ import (
 	api "github.com/lucassabreu/clockify-cli/api"
 	cmdutil "github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 
+	defaults "github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
+
 	dto "github.com/lucassabreu/clockify-cli/api/dto"
 
 	mock "github.com/stretchr/testify/mock"
@@ -235,6 +237,44 @@ func (_c *MockFactory_GetWorkspaceID_Call) Run(run func()) *MockFactory_GetWorks
 
 func (_c *MockFactory_GetWorkspaceID_Call) Return(_a0 string, _a1 error) *MockFactory_GetWorkspaceID_Call {
 	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+// TimeEntryDefaults provides a mock function with given fields:
+func (_m *MockFactory) TimeEntryDefaults() defaults.TimeEntryDefaults {
+	ret := _m.Called()
+
+	var r0 defaults.TimeEntryDefaults
+	if rf, ok := ret.Get(0).(func() defaults.TimeEntryDefaults); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(defaults.TimeEntryDefaults)
+		}
+	}
+
+	return r0
+}
+
+// MockFactory_TimeEntryDefaults_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TimeEntryDefaults'
+type MockFactory_TimeEntryDefaults_Call struct {
+	*mock.Call
+}
+
+// TimeEntryDefaults is a helper method to define mock.On call
+func (_e *MockFactory_Expecter) TimeEntryDefaults() *MockFactory_TimeEntryDefaults_Call {
+	return &MockFactory_TimeEntryDefaults_Call{Call: _e.mock.On("TimeEntryDefaults")}
+}
+
+func (_c *MockFactory_TimeEntryDefaults_Call) Run(run func()) *MockFactory_TimeEntryDefaults_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockFactory_TimeEntryDefaults_Call) Return(_a0 defaults.TimeEntryDefaults) *MockFactory_TimeEntryDefaults_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
