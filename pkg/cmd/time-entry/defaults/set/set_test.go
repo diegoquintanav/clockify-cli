@@ -7,6 +7,7 @@ import (
 	"github.com/lucassabreu/clockify-cli/internal/mocks"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/defaults/set"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
+	"github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,11 +15,71 @@ import (
 var bTrue = true
 var bFalse = false
 
-func TestNewCmdSet_ShouldCreateAndUpdate_DefaultsFile(t *testing.T) {
+func runCmd(f cmdutil.Factory, args []string) (
+	d defaults.DefaultTimeEntry, reported bool, err error) {
+
+	cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
+		dte defaults.DefaultTimeEntry) error {
+		reported = true
+		d = dte
+		return nil
+	})
+
+	cmd.SilenceUsage = true
+	cmd.SetArgs(args)
+	_, err = cmd.ExecuteC()
+
+	return d, reported, err
+}
+
+func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
+	tts := []struct {
+		name    string
+		args    []string
+		err     string
+		factory func(t *testing.T) cmdutil.Factory
+	}{}
+
+	for i := range tts {
+		tt := &tts[i]
+		t.Run(tt.name, func(t *testing.T) {
+			f := mocks.NewMockFactory(t)
+			f.EXPECT().Config().Return(&mocks.SimpleConfig{
+				AllowNameForID: false,
+				Interactive:    false,
+			})
+			f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
+			f.EXPECT().GetWorkspaceID().Return(tt.expected.Workspace, nil)
+
+			ted := mocks.NewMockTimeEntryDefaults(t)
+			ted.EXPECT().Read().Return(tt.current, nil)
+			ted.EXPECT().Write(tt.expected).Return(nil)
+			f.EXPECT().TimeEntryDefaults().Return(ted)
+
+			called := false
+			var result defaults.DefaultTimeEntry
+			cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
+				dte defaults.DefaultTimeEntry) error {
+				called = true
+				result = dte
+				return nil
+			})
+
+			cmd.SilenceUsage = true
+			cmd.SetArgs(tt.args)
+			_, err := cmd.ExecuteC()
+
+			assert.NoError(t, err, "should not have failed")
+			assert.True(t, called)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestNewCmdSet_ShouldUpdateDefaultsFile_OnlyByFlags(t *testing.T) {
 	tts := []struct {
 		name     string
 		args     []string
-		err      string
 		current  defaults.DefaultTimeEntry
 		expected defaults.DefaultTimeEntry
 	}{
@@ -65,6 +126,7 @@ func TestNewCmdSet_ShouldCreateAndUpdate_DefaultsFile(t *testing.T) {
 			},
 		},
 	}
+
 	for i := range tts {
 		tt := &tts[i]
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,17 +152,9 @@ func TestNewCmdSet_ShouldCreateAndUpdate_DefaultsFile(t *testing.T) {
 				return nil
 			})
 
+			cmd.SilenceUsage = true
 			cmd.SetArgs(tt.args)
 			_, err := cmd.ExecuteC()
-			if tt.err != "" {
-				assert.False(t, called)
-				if !assert.Error(t, err) {
-					return
-				}
-
-				assert.Regexp(t, tt.err, err)
-				return
-			}
 
 			assert.NoError(t, err, "should not have failed")
 			assert.True(t, called)
