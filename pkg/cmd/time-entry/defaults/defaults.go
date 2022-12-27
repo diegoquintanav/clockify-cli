@@ -19,7 +19,7 @@ func NewCmdDefaults(f cmdutil.Factory) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		set.NewCmdSet(f),
+		set.NewCmdSet(f, nil),
 		show.NewCmdShow(f),
 	)
 

@@ -245,5 +245,4 @@ func getTED() func() defaults.TimeEntryDefaults {
 
 		return ted
 	}
-
 }
