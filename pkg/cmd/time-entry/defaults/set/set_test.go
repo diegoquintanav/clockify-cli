@@ -1,6 +1,7 @@
 package set_test
 
 import (
+	"errors"
 	"io"
 	"testing"
 
@@ -38,40 +39,82 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 		args    []string
 		err     string
 		factory func(t *testing.T) cmdutil.Factory
-	}{}
+	}{
+		{
+			name: "can't be not billable and billable",
+			args: []string{"--billable", "--not-billable"},
+			err:  ".*flags can't be used together.*",
+			factory: func(*testing.T) cmdutil.Factory {
+				return mocks.NewMockFactory(t)
+			},
+		},
+		{
+			name: "can't read file",
+			err:  "failed",
+			factory: func(*testing.T) cmdutil.Factory {
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					errors.New("failed"),
+				)
+
+				f := mocks.NewMockFactory(t)
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				return f
+			},
+		},
+		{
+			name: "failed to get client",
+			args: []string{"--project", "p1"},
+			err:  "failed",
+			factory: func(*testing.T) cmdutil.Factory {
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f := mocks.NewMockFactory(t)
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+				f.EXPECT().Client().Return(
+					mocks.NewMockClient(t),
+					errors.New("failed"),
+				)
+
+				return f
+			},
+		},
+		{
+			name: "can't get workspace",
+			err:  "failed",
+			factory: func(*testing.T) cmdutil.Factory {
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f := mocks.NewMockFactory(t)
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+				f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
+
+				f.EXPECT().GetWorkspaceID().Return("", errors.New("failed"))
+
+				return f
+			},
+		},
+	}
 
 	for i := range tts {
 		tt := &tts[i]
 		t.Run(tt.name, func(t *testing.T) {
-			f := mocks.NewMockFactory(t)
-			f.EXPECT().Config().Return(&mocks.SimpleConfig{
-				AllowNameForID: false,
-				Interactive:    false,
-			})
-			f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
-			f.EXPECT().GetWorkspaceID().Return(tt.expected.Workspace, nil)
-
-			ted := mocks.NewMockTimeEntryDefaults(t)
-			ted.EXPECT().Read().Return(tt.current, nil)
-			ted.EXPECT().Write(tt.expected).Return(nil)
-			f.EXPECT().TimeEntryDefaults().Return(ted)
-
-			called := false
-			var result defaults.DefaultTimeEntry
-			cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
-				dte defaults.DefaultTimeEntry) error {
-				called = true
-				result = dte
-				return nil
-			})
-
-			cmd.SilenceUsage = true
-			cmd.SetArgs(tt.args)
-			_, err := cmd.ExecuteC()
-
-			assert.NoError(t, err, "should not have failed")
-			assert.True(t, called)
-			assert.Equal(t, tt.expected, result)
+			_, called, err := runCmd(tt.factory(t), tt.args)
+			if !assert.Error(t, err, "should have failed") {
+				return
+			}
+			assert.False(t, called)
+			assert.Regexp(t, tt.err, err)
 		})
 	}
 }
@@ -143,18 +186,7 @@ func TestNewCmdSet_ShouldUpdateDefaultsFile_OnlyByFlags(t *testing.T) {
 			ted.EXPECT().Write(tt.expected).Return(nil)
 			f.EXPECT().TimeEntryDefaults().Return(ted)
 
-			called := false
-			var result defaults.DefaultTimeEntry
-			cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
-				dte defaults.DefaultTimeEntry) error {
-				called = true
-				result = dte
-				return nil
-			})
-
-			cmd.SilenceUsage = true
-			cmd.SetArgs(tt.args)
-			_, err := cmd.ExecuteC()
+			result, called, err := runCmd(f, tt.args)
 
 			assert.NoError(t, err, "should not have failed")
 			assert.True(t, called)

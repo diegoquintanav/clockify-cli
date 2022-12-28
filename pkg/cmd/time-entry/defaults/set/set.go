@@ -33,6 +33,11 @@ func NewCmdSet(
 		Example: "",
 		Args:    cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmdutil.XorFlagSet(
+				cmd.Flags(), "billable", "not-billable"); err != nil {
+				return err
+			}
+
 			d, _ := f.TimeEntryDefaults().Read()
 
 			c, err := f.Client()
