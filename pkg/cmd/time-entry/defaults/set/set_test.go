@@ -5,12 +5,15 @@ import (
 	"io"
 	"testing"
 
+	"github.com/lucassabreu/clockify-cli/api"
+	"github.com/lucassabreu/clockify-cli/api/dto"
 	"github.com/lucassabreu/clockify-cli/internal/mocks"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/defaults/set"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
 	"github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 var bTrue = true
@@ -77,6 +80,7 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 
 				f := mocks.NewMockFactory(t)
 				f.EXPECT().TimeEntryDefaults().Return(ted)
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
 				f.EXPECT().Client().Return(
 					mocks.NewMockClient(t),
 					errors.New("failed"),
@@ -97,9 +101,233 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 
 				f := mocks.NewMockFactory(t)
 				f.EXPECT().TimeEntryDefaults().Return(ted)
-				f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
 
 				f.EXPECT().GetWorkspaceID().Return("", errors.New("failed"))
+
+				return f
+			},
+		},
+		{
+			name: "can't get project",
+			err:  "failed",
+			args: []string{"--project", "p"},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: false,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProject(api.GetProjectParam{
+					Workspace: "w",
+					ProjectID: "p",
+					Hydrate:   false,
+				}).Return(nil, errors.New("failed"))
+
+				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't find task",
+			err:  `can't find task with ID "tk" on project "p"`,
+			args: []string{
+				"--project", "p",
+				"--task=tk",
+			},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: false,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProject(api.GetProjectParam{
+					Workspace: "w",
+					ProjectID: "p",
+					Hydrate:   true,
+				}).Return(&dto.Project{ID: "p", Name: "project"}, nil)
+
+				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't find tag",
+			err:  "failed",
+			args: []string{
+				"--project", "p",
+				"-T", "tg",
+			},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: false,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProject(api.GetProjectParam{
+					Workspace: "w",
+					ProjectID: "p",
+					Hydrate:   false,
+				}).Return(&dto.Project{ID: "p", Name: "project"}, nil)
+
+				cl.EXPECT().GetTag(api.GetTagParam{
+					Workspace: "w",
+					TagID:     "tg",
+				}).Return(nil, errors.New("failed"))
+
+				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't find project by name",
+			err:  "ca'nt find project with id/name p",
+			args: []string{"--project", "p"},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: true,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProjects(mock.Anything).
+					Return([]dto.Project{}, nil)
+
+				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't find task by name",
+			err:  "ca'nt find task with id/name task",
+			args: []string{"--project", "project", "--task=task"},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: true,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProjects(mock.Anything).
+					Return([]dto.Project{{ID: "p", Name: "project"}}, nil)
+
+				cl.EXPECT().GetTasks(api.GetTasksParam{
+					Workspace:       "w",
+					ProjectID:       "p",
+					Active:          true,
+					PaginationParam: api.AllPages(),
+				}).
+					Return([]dto.Task{{ID: "tk", Name: "other"}}, nil)
+
+				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't find tag by name",
+			err:  "ca'nt find tag with id/name tag",
+			args: []string{
+				"--project", "project",
+				"--task=task",
+				"-T=tag",
+			},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: true,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProjects(mock.Anything).
+					Return([]dto.Project{{ID: "p", Name: "project"}}, nil)
+
+				cl.EXPECT().GetTasks(api.GetTasksParam{
+					Workspace:       "w",
+					ProjectID:       "p",
+					Active:          true,
+					PaginationParam: api.AllPages(),
+				}).
+					Return([]dto.Task{{ID: "tk", Name: "task"}}, nil)
+
+				cl.EXPECT().GetTags(api.GetTagsParam{
+					Workspace:       "w",
+					Archived:        &bFalse,
+					PaginationParam: api.AllPages(),
+				}).
+					Return([]dto.Tag{{ID: "tg", Name: "other"}}, nil)
+
+				f.EXPECT().Client().Return(cl, nil)
 
 				return f
 			},

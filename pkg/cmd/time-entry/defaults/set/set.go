@@ -3,7 +3,7 @@ package set
 import (
 	"io"
 
-	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util"
+	"github.com/lucassabreu/clockify-cli/api"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
 	"github.com/lucassabreu/clockify-cli/pkg/cmdcompl"
 	"github.com/lucassabreu/clockify-cli/pkg/cmdcomplutil"
@@ -11,6 +11,7 @@ import (
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // NewCmdSet sets the default parameters for time entries in the current folder
@@ -38,41 +39,37 @@ func NewCmdSet(
 				return err
 			}
 
-			d, _ := f.TimeEntryDefaults().Read()
-
-			c, err := f.Client()
-			if err != nil {
+			d, err := f.TimeEntryDefaults().Read()
+			if err != nil && err != defaults.DefaultsFileNotFoundErr {
 				return err
 			}
 
-			d.Workspace, _ = f.GetWorkspaceID()
-			t, err := util.Do(
-				util.TimeEntryDTO{
-					Workspace: d.Workspace,
-					ProjectID: d.ProjectID,
-					TaskID:    d.TaskID,
-					TagIDs:    d.TagIDs,
-					Billable:  d.Billable,
-				},
-				util.FillTimeEntryWithFlags(cmd.Flags()),
-				util.GetAllowNameForIDsFn(f.Config(), c),
-			)
-			if err != nil {
+			n, changed := readFlags(d, cmd.Flags())
+
+			if n.Workspace, err = f.GetWorkspaceID(); err != nil {
 				return err
 			}
 
-			d = defaults.DefaultTimeEntry{
-				Workspace: t.Workspace,
-				ProjectID: t.ProjectID,
-				TaskID:    t.TaskID,
-				Billable:  t.Billable,
-				TagIDs:    t.TagIDs,
+			if changed || d.Workspace != n.Workspace {
+				c, err := f.Client()
+				if err != nil {
+					return err
+				}
+
+				if f.Config().IsAllowNameForID() {
+					if n, err = updateIDsByNames(c, n); err != nil {
+						return err
+					}
+				} else if err = checkIDs(c, n); err != nil {
+					return err
+				}
 			}
-			if err = f.TimeEntryDefaults().Write(d); err != nil {
+
+			if err = f.TimeEntryDefaults().Write(n); err != nil {
 				return err
 			}
 
-			return report(of, cmd.OutOrStdout(), d)
+			return report(of, cmd.OutOrStdout(), n)
 		},
 	}
 
@@ -94,4 +91,78 @@ func NewCmdSet(
 		cmdcomplutil.NewProjectAutoComplete(f))
 
 	return cmd
+}
+
+func readFlags(
+	d defaults.DefaultTimeEntry,
+	f *pflag.FlagSet,
+) (defaults.DefaultTimeEntry, bool) {
+	changed := false
+	if f.Changed("project") {
+		d.ProjectID, _ = f.GetString("project")
+		changed = true
+	}
+
+	if f.Changed("task") {
+		d.TaskID, _ = f.GetString("task")
+		changed = true
+	}
+
+	if f.Changed("tag") {
+		d.TagIDs, _ = f.GetStringSlice("tag")
+		changed = true
+	}
+
+	if f.Changed("billable") {
+		b := true
+		d.Billable = &b
+		changed = true
+	} else if f.Changed("not-billable") {
+		b := false
+		d.Billable = &b
+		changed = true
+	}
+
+	return d, changed
+}
+
+func checkIDs(c api.Client, d defaults.DefaultTimeEntry) error {
+	if d.ProjectID != "" {
+		p, err := c.GetProject(api.GetProjectParam{
+			Workspace: d.Workspace,
+			ProjectID: d.ProjectID,
+			Hydrate:   d.TaskID != "",
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if d.TaskID != "" {
+			found := false
+			for i := range p.Tasks {
+				if p.Tasks[i].ID == d.TaskID {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				return errors.New(
+					"can't find task with ID \"" + d.TaskID +
+						"\" on project \"" + d.ProjectID + "\"")
+			}
+		}
+	} else {
+		d.TaskID = ""
+	}
+
+	return nil
+}
+
+func updateIDsByNames(c api.Client, d defaults.DefaultTimeEntry) (
+	defaults.DefaultTimeEntry,
+	error,
+) {
+	return d, nil
 }
