@@ -9,6 +9,7 @@ import (
 	"github.com/lucassabreu/clockify-cli/pkg/cmdcomplutil"
 	"github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
+	"github.com/lucassabreu/clockify-cli/strhlp"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -110,6 +111,7 @@ func readFlags(
 
 	if f.Changed("tag") {
 		d.TagIDs, _ = f.GetStringSlice("tag")
+		d.TagIDs = strhlp.Unique(d.TagIDs)
 		changed = true
 	}
 
@@ -153,8 +155,29 @@ func checkIDs(c api.Client, d defaults.DefaultTimeEntry) error {
 						"\" on project \"" + d.ProjectID + "\"")
 			}
 		}
-	} else {
-		d.TaskID = ""
+	} else if d.TaskID != "" {
+		return errors.New("task can't be set without a project")
+	}
+
+	archived := false
+	tags, err := c.GetTags(api.GetTagsParam{
+		Workspace:       d.Workspace,
+		Archived:        &archived,
+		PaginationParam: api.AllPages(),
+	})
+	if err != nil {
+		return err
+	}
+
+	ids := make([]string, len(tags))
+	for i := range tags {
+		ids[i] = tags[i].ID
+	}
+
+	for _, id := range d.TagIDs {
+		if !strhlp.InSlice(id, ids) {
+			return errors.Errorf("can't find tag with ID \"%s\"", id)
+		}
 	}
 
 	return nil

@@ -176,6 +176,48 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 		},
 		{
 			name: "can't find tag",
+			err:  "can't find tag with ID \"tg\"",
+			args: []string{
+				"--project", "p",
+				"-T", "tg",
+			},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: false,
+				})
+
+				cl := mocks.NewMockClient(t)
+				cl.EXPECT().GetProject(api.GetProjectParam{
+					Workspace: "w",
+					ProjectID: "p",
+					Hydrate:   false,
+				}).Return(&dto.Project{ID: "p", Name: "project"}, nil)
+
+				cl.EXPECT().GetTags(api.GetTagsParam{
+					Workspace:       "w",
+					Archived:        &bFalse,
+					PaginationParam: api.AllPages(),
+				}).Return([]dto.Tag{{ID: "not that"}}, nil)
+
+				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't look for tag",
 			err:  "failed",
 			args: []string{
 				"--project", "p",
@@ -205,9 +247,10 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 					Hydrate:   false,
 				}).Return(&dto.Project{ID: "p", Name: "project"}, nil)
 
-				cl.EXPECT().GetTag(api.GetTagParam{
-					Workspace: "w",
-					TagID:     "tg",
+				cl.EXPECT().GetTags(api.GetTagsParam{
+					Workspace:       "w",
+					Archived:        &bFalse,
+					PaginationParam: api.AllPages(),
 				}).Return(nil, errors.New("failed"))
 
 				f.EXPECT().Client().Return(cl, nil)
@@ -328,6 +371,32 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 					Return([]dto.Tag{{ID: "tg", Name: "other"}}, nil)
 
 				f.EXPECT().Client().Return(cl, nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't set task without project",
+			err:  "ca'nt set task without project",
+			args: []string{"--task=task"},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: true,
+				})
+
+				f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
 
 				return f
 			},
