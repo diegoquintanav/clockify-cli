@@ -30,6 +30,7 @@ func runCmd(f cmdutil.Factory, args []string) (
 	})
 
 	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
 	cmd.SetArgs(args)
 	_, err = cmd.ExecuteC()
 
@@ -220,7 +221,6 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 			name: "can't look for tag",
 			err:  "failed",
 			args: []string{
-				"--project", "p",
 				"-T", "tg",
 			},
 			factory: func(*testing.T) cmdutil.Factory {
@@ -241,11 +241,6 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 				})
 
 				cl := mocks.NewMockClient(t)
-				cl.EXPECT().GetProject(api.GetProjectParam{
-					Workspace: "w",
-					ProjectID: "p",
-					Hydrate:   false,
-				}).Return(&dto.Project{ID: "p", Name: "project"}, nil)
 
 				cl.EXPECT().GetTags(api.GetTagsParam{
 					Workspace:       "w",
@@ -260,7 +255,7 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 		},
 		{
 			name: "can't find project by name",
-			err:  "ca'nt find project with id/name p",
+			err:  "No project with id or name containing 'p' was found",
 			args: []string{"--project", "p"},
 			factory: func(*testing.T) cmdutil.Factory {
 				f := mocks.NewMockFactory(t)
@@ -290,7 +285,7 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 		},
 		{
 			name: "can't find task by name",
-			err:  "ca'nt find task with id/name task",
+			err:  "No task with id or name containing 'task' was found",
 			args: []string{"--project", "project", "--task=task"},
 			factory: func(*testing.T) cmdutil.Factory {
 				f := mocks.NewMockFactory(t)
@@ -328,7 +323,7 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 		},
 		{
 			name: "can't find tag by name",
-			err:  "ca'nt find tag with id/name tag",
+			err:  "No tag with id or name containing 'tag' was found",
 			args: []string{
 				"--project", "project",
 				"--task=task",
@@ -377,7 +372,7 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 		},
 		{
 			name: "can't set task without project",
-			err:  "ca'nt set task without project",
+			err:  "can't set task without project",
 			args: []string{"--task=task"},
 			factory: func(*testing.T) cmdutil.Factory {
 				f := mocks.NewMockFactory(t)
@@ -397,6 +392,41 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 				})
 
 				f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
+
+				return f
+			},
+		},
+		{
+			name: "can't find tag by name (no project)",
+			err:  "No tag with id or name containing 'tag2' was found",
+			args: []string{"-T=tag", "-T=tag2"},
+			factory: func(*testing.T) cmdutil.Factory {
+				f := mocks.NewMockFactory(t)
+
+				ted := mocks.NewMockTimeEntryDefaults(t)
+				ted.EXPECT().Read().Return(
+					defaults.DefaultTimeEntry{},
+					defaults.DefaultsFileNotFoundErr,
+				)
+
+				f.EXPECT().TimeEntryDefaults().Return(ted)
+
+				f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: true,
+				})
+
+				cl := mocks.NewMockClient(t)
+
+				cl.EXPECT().GetTags(api.GetTagsParam{
+					Workspace:       "w",
+					Archived:        &bFalse,
+					PaginationParam: api.AllPages(),
+				}).
+					Return([]dto.Tag{{ID: "tag", Name: "other"}}, nil)
+
+				f.EXPECT().Client().Return(cl, nil)
 
 				return f
 			},

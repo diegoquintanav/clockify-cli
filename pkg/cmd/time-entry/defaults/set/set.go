@@ -9,6 +9,7 @@ import (
 	"github.com/lucassabreu/clockify-cli/pkg/cmdcomplutil"
 	"github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
+	"github.com/lucassabreu/clockify-cli/pkg/search"
 	"github.com/lucassabreu/clockify-cli/strhlp"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -57,8 +58,13 @@ func NewCmdSet(
 					return err
 				}
 
+				if n.TaskID != "" && n.ProjectID == "" {
+					return errors.New("can't set task without project")
+				}
+
 				if f.Config().IsAllowNameForID() {
-					if n, err = updateIDsByNames(c, n); err != nil {
+					if n, err = updateIDsByNames(
+						c, n, f.Config()); err != nil {
 						return err
 					}
 				} else if err = checkIDs(c, n); err != nil {
@@ -183,9 +189,37 @@ func checkIDs(c api.Client, d defaults.DefaultTimeEntry) error {
 	return nil
 }
 
-func updateIDsByNames(c api.Client, d defaults.DefaultTimeEntry) (
+func updateIDsByNames(
+	c api.Client, d defaults.DefaultTimeEntry, cnf cmdutil.Config) (
 	defaults.DefaultTimeEntry,
 	error,
 ) {
+	var err error
+	if d.ProjectID != "" {
+		d.ProjectID, err = search.GetProjectByName(c, d.Workspace, d.ProjectID)
+		if err != nil {
+			return d, err
+		}
+	}
+
+	if d.TaskID != "" {
+		d.TaskID, err = search.GetTaskByName(c, api.GetTasksParam{
+			Workspace: d.Workspace,
+			ProjectID: d.ProjectID,
+			Active:    true,
+		}, d.TaskID)
+		if err != nil {
+			return d, err
+		}
+	}
+
+	if len(d.TagIDs) > 0 {
+		d.TagIDs, err = search.GetTagsByName(
+			c, d.Workspace, !cnf.IsAllowArchivedTags(), d.TagIDs)
+		if err != nil {
+			return d, err
+		}
+	}
+
 	return d, nil
 }
