@@ -7,11 +7,13 @@ import (
 
 	"github.com/lucassabreu/clockify-cli/api"
 	"github.com/lucassabreu/clockify-cli/api/dto"
+	"github.com/lucassabreu/clockify-cli/internal/consoletest"
 	"github.com/lucassabreu/clockify-cli/internal/mocks"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/defaults/set"
 	"github.com/lucassabreu/clockify-cli/pkg/cmd/time-entry/util/defaults"
 	"github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
+	"github.com/lucassabreu/clockify-cli/pkg/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -35,6 +37,45 @@ func runCmd(f cmdutil.Factory, args []string) (
 	_, err = cmd.ExecuteC()
 
 	return d, reported, err
+}
+
+func TestNewCmdSet_ShouldAskInfo_WhenInteractive(t *testing.T) {
+	consoletest.RunTestConsole(t,
+		func(out consoletest.FileWriter, in consoletest.FileReader) error {
+			f := mocks.NewMockFactory(t)
+
+			f.EXPECT().UI().Return(ui.NewUI(in, out, out))
+
+			ted := mocks.NewMockTimeEntryDefaults(t)
+			ted.EXPECT().Read().Return(defaults.DefaultTimeEntry{}, nil)
+			ted.On("Write", mock.Anything).Return(nil)
+			f.EXPECT().TimeEntryDefaults().Return(ted)
+
+			var d defaults.DefaultTimeEntry
+			cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
+				dte defaults.DefaultTimeEntry) error {
+				d = dte
+				return nil
+			})
+
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			cmd.SetArgs([]string{})
+			_, err := cmd.ExecuteC()
+
+			assert.NoError(t, err)
+
+			assert.Equal(t, "w", d.Workspace)
+			assert.Equal(t, "p", d.ProjectID)
+			assert.Equal(t, "t", d.TaskID)
+			assert.Equal(t, []string{"tg1", "tg2"}, d.TagIDs)
+			assert.Equal(t, &bTrue, d.Billable)
+
+			return err
+		},
+		func(c consoletest.ExpectConsole) {
+		},
+	)
 }
 
 func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
