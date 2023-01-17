@@ -53,13 +53,13 @@ func NewCmdSet(
 			}
 
 			if changed || d.Workspace != n.Workspace {
+				if n.TaskID != "" && n.ProjectID == "" {
+					return errors.New("can't set task without project")
+				}
+
 				c, err := f.Client()
 				if err != nil {
 					return err
-				}
-
-				if n.TaskID != "" && n.ProjectID == "" {
-					return errors.New("can't set task without project")
 				}
 
 				if f.Config().IsAllowNameForID() {

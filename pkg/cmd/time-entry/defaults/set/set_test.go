@@ -387,12 +387,6 @@ func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
 
 				f.EXPECT().GetWorkspaceID().Return("w", nil)
 
-				f.EXPECT().Config().Return(&mocks.SimpleConfig{
-					AllowNameForID: true,
-				})
-
-				f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
-
 				return f
 			},
 		},
