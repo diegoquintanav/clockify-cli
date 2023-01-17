@@ -495,11 +495,43 @@ func TestNewCmdSet_ShouldUpdateDefaultsFile_OnlyByFlags(t *testing.T) {
 		tt := &tts[i]
 		t.Run(tt.name, func(t *testing.T) {
 			f := mocks.NewMockFactory(t)
-			f.EXPECT().Config().Return(&mocks.SimpleConfig{
-				AllowNameForID: false,
-				Interactive:    false,
-			})
-			f.EXPECT().Client().Return(mocks.NewMockClient(t), nil)
+
+			if len(tt.args) != 0 {
+				f.EXPECT().Config().Return(&mocks.SimpleConfig{
+					AllowNameForID: false,
+					Interactive:    false,
+				})
+
+				c := mocks.NewMockClient(t)
+
+				tasks := make([]dto.Task, 0)
+
+				if tt.expected.TaskID != "" {
+					tasks = append(tasks, dto.Task{
+						ID: tt.expected.TaskID,
+					})
+				}
+
+				if tt.expected.ProjectID != "" {
+					c.On("GetProject", mock.Anything).Return(&dto.Project{
+						ID:    tt.expected.ProjectID,
+						Tasks: tasks,
+					}, nil)
+				}
+
+				if len(tt.expected.TagIDs) != 0 {
+					tags := make([]dto.Tag, len(tt.expected.TagIDs))
+
+					for i := range tt.expected.TagIDs {
+						tags[i] = dto.Tag{ID: tt.expected.TagIDs[i]}
+					}
+
+					c.On("GetTags", mock.Anything).Return(tags, nil)
+				}
+
+				f.EXPECT().Client().Return(c, nil)
+			}
+
 			f.EXPECT().GetWorkspaceID().Return(tt.expected.Workspace, nil)
 
 			ted := mocks.NewMockTimeEntryDefaults(t)
