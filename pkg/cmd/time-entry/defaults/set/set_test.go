@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/lucassabreu/clockify-cli/api"
 	"github.com/lucassabreu/clockify-cli/api/dto"
 	"github.com/lucassabreu/clockify-cli/internal/consoletest"
@@ -20,6 +21,124 @@ import (
 
 var bTrue = true
 var bFalse = false
+
+func TestNewCmdSet_ShouldAskInfo_WhenInteractive(t *testing.T) {
+	consoletest.RunTestConsole(t,
+		func(out consoletest.FileWriter, in consoletest.FileReader) error {
+			f := mocks.NewMockFactory(t)
+
+			f.EXPECT().UI().Return(ui.NewUI(in, out, out))
+
+			ted := mocks.NewMockTimeEntryDefaults(t)
+			ted.EXPECT().Read().Return(defaults.DefaultTimeEntry{}, nil)
+			ted.On("Write", mock.Anything).Return(nil)
+			f.EXPECT().TimeEntryDefaults().Return(ted)
+
+			f.EXPECT().GetWorkspaceID().Return("w", nil)
+
+			c := mocks.NewMockClient(t)
+
+			c.EXPECT().GetProjects(api.GetProjectsParam{
+				Workspace:       "w",
+				Archived:        &bFalse,
+				PaginationParam: api.AllPages(),
+			}).
+				Return([]dto.Project{
+					{ID: "p", Name: "first"},
+					{ID: "p2", Name: "second",
+						ClientID: "c", ClientName: "Myself"},
+					{ID: "p3", Name: "third"},
+				}, nil)
+
+			c.EXPECT().GetTasks(api.GetTasksParam{
+				Workspace:       "w",
+				ProjectID:       "p",
+				Active:          true,
+				PaginationParam: api.AllPages(),
+			}).
+				Return([]dto.Task{
+					{ID: "t", Name: "first"},
+					{ID: "t2", Name: "second"},
+					{ID: "t3", Name: "third"},
+				}, nil)
+
+			c.EXPECT().GetTags(api.GetTagsParam{
+				Workspace:       "w",
+				Archived:        &bFalse,
+				PaginationParam: api.AllPages(),
+			}).
+				Return([]dto.Tag{
+					{ID: "tg1", Name: "first"},
+					{ID: "tg2", Name: "second"},
+					{ID: "tg3", Name: "third"},
+				}, nil)
+
+			f.EXPECT().Client().Return(c, nil)
+
+			f.EXPECT().Config().Return(&mocks.SimpleConfig{
+				AllowNameForID: true,
+				Interactive:    true,
+			})
+
+			var d defaults.DefaultTimeEntry
+			cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
+				dte defaults.DefaultTimeEntry) error {
+				d = dte
+				return nil
+			})
+
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			cmd.SetArgs([]string{
+				"-p=not found",
+				"--task=nf",
+				"-T=nf",
+				"--not-billable",
+			})
+			_, err := cmd.ExecuteC()
+
+			if !assert.NoError(t, err) {
+				return err
+			}
+
+			assert.Equal(t, "w", d.Workspace)
+			assert.Equal(t, "p3", d.ProjectID)
+			assert.Equal(t, "t2", d.TaskID)
+			assert.Equal(t, []string{"tg1", "tg2", "tg3"}, d.TagIDs)
+			assert.Equal(t, &bTrue, d.Billable)
+
+			return err
+		},
+		func(c consoletest.ExpectConsole) {
+			c.ExpectString("Choose your project:")
+			c.ExpectString("> No Project")
+			c.ExpectString("first  | Without Client")
+			c.ExpectString("second | Client: Myself")
+			c.ExpectString("third  | Without Client")
+
+			c.Send("without")
+			c.SendLine(string(terminal.KeyArrowDown))
+
+			c.ExpectString("Choose your task:")
+			c.ExpectString("> No Task")
+			c.ExpectString("first")
+			c.ExpectString("second")
+			c.ExpectString("third")
+			c.SendLine("sec")
+
+			c.ExpectString("Choose your tags:")
+			c.ExpectString("first")
+			c.ExpectString("second")
+			c.ExpectString("third")
+			c.SendLine(string(terminal.KeyArrowRight))
+
+			c.ExpectString("Should be billable?")
+			c.SendLine("y")
+
+			c.ExpectEOF()
+		},
+	)
+}
 
 func runCmd(f cmdutil.Factory, args []string) (
 	d defaults.DefaultTimeEntry, reported bool, err error) {
@@ -37,45 +156,6 @@ func runCmd(f cmdutil.Factory, args []string) (
 	_, err = cmd.ExecuteC()
 
 	return d, reported, err
-}
-
-func TestNewCmdSet_ShouldAskInfo_WhenInteractive(t *testing.T) {
-	consoletest.RunTestConsole(t,
-		func(out consoletest.FileWriter, in consoletest.FileReader) error {
-			f := mocks.NewMockFactory(t)
-
-			f.EXPECT().UI().Return(ui.NewUI(in, out, out))
-
-			ted := mocks.NewMockTimeEntryDefaults(t)
-			ted.EXPECT().Read().Return(defaults.DefaultTimeEntry{}, nil)
-			ted.On("Write", mock.Anything).Return(nil)
-			f.EXPECT().TimeEntryDefaults().Return(ted)
-
-			var d defaults.DefaultTimeEntry
-			cmd := set.NewCmdSet(f, func(_ OutputFlags, _ io.Writer,
-				dte defaults.DefaultTimeEntry) error {
-				d = dte
-				return nil
-			})
-
-			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
-			cmd.SetArgs([]string{})
-			_, err := cmd.ExecuteC()
-
-			assert.NoError(t, err)
-
-			assert.Equal(t, "w", d.Workspace)
-			assert.Equal(t, "p", d.ProjectID)
-			assert.Equal(t, "t", d.TaskID)
-			assert.Equal(t, []string{"tg1", "tg2"}, d.TagIDs)
-			assert.Equal(t, &bTrue, d.Billable)
-
-			return err
-		},
-		func(c consoletest.ExpectConsole) {
-		},
-	)
 }
 
 func TestNewCmdSet_ShouldFail_WhenInvalidArgs(t *testing.T) {
