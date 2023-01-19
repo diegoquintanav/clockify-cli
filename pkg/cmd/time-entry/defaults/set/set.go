@@ -67,8 +67,18 @@ func NewCmdSet(
 						c, n, f.Config()); err != nil {
 						return err
 					}
-				} else if err = checkIDs(c, n); err != nil {
-					return err
+				}
+
+				if f.Config().IsInteractive() {
+					if n, err = ask(n, f.Config(), c); err != nil {
+						return err
+					}
+				}
+
+				if !f.Config().IsAllowNameForID() {
+					if err = checkIDs(c, n); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -198,7 +208,11 @@ func updateIDsByNames(
 	if d.ProjectID != "" {
 		d.ProjectID, err = search.GetProjectByName(c, d.Workspace, d.ProjectID)
 		if err != nil {
-			return d, err
+			d.ProjectID = ""
+			d.TaskID = ""
+			if !cnf.IsInteractive() {
+				return d, err
+			}
 		}
 	}
 
@@ -208,7 +222,7 @@ func updateIDsByNames(
 			ProjectID: d.ProjectID,
 			Active:    true,
 		}, d.TaskID)
-		if err != nil {
+		if err != nil && !cnf.IsInteractive() {
 			return d, err
 		}
 	}
@@ -216,10 +230,18 @@ func updateIDsByNames(
 	if len(d.TagIDs) > 0 {
 		d.TagIDs, err = search.GetTagsByName(
 			c, d.Workspace, !cnf.IsAllowArchivedTags(), d.TagIDs)
-		if err != nil {
+		if err != nil && !cnf.IsInteractive() {
 			return d, err
 		}
 	}
+
+	return d, nil
+}
+
+func ask(d defaults.DefaultTimeEntry, cnf cmdutil.Config, c api.Client) (
+	defaults.DefaultTimeEntry,
+	error,
+) {
 
 	return d, nil
 }

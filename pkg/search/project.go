@@ -12,8 +12,10 @@ func GetProjectByName(
 	project string,
 ) (string, error) {
 	id, err := findByName(project, "project", func() ([]named, error) {
+		b := false
 		ps, err := c.GetProjects(api.GetProjectsParam{
 			Workspace:       workspace,
+			Archived:        &b,
 			PaginationParam: api.AllPages(),
 		})
 		if err != nil {
