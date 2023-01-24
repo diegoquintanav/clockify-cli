@@ -11,6 +11,7 @@ import (
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
 	"github.com/lucassabreu/clockify-cli/pkg/search"
 	"github.com/lucassabreu/clockify-cli/pkg/ui"
+	"github.com/lucassabreu/clockify-cli/pkg/uiutil"
 	"github.com/lucassabreu/clockify-cli/strhlp"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -176,7 +177,6 @@ func checkIDs(c api.Client, d defaults.DefaultTimeEntry) error {
 		return errors.New("task can't be set without a project")
 	}
 
-	archived := false
 	tags, err := c.GetTags(api.GetTagsParam{
 		Workspace:       d.Workspace,
 		Archived:        &archived,
@@ -199,6 +199,8 @@ func checkIDs(c api.Client, d defaults.DefaultTimeEntry) error {
 
 	return nil
 }
+
+var archived = false
 
 func updateIDsByNames(
 	c api.Client, d defaults.DefaultTimeEntry, cnf cmdutil.Config) (
@@ -248,6 +250,71 @@ func ask(
 	defaults.DefaultTimeEntry,
 	error,
 ) {
+	ui.SetPageSize(uint(cnf.InteractivePageSize()))
 
-	return d, nil
+	ps, err := c.GetProjects(api.GetProjectsParam{
+		Workspace:       d.Workspace,
+		Archived:        &archived,
+		PaginationParam: api.AllPages(),
+	})
+	if err != nil {
+		return d, err
+	}
+
+	p, err := uiutil.AskProject(uiutil.AskProjectParam{
+		UI:          ui,
+		WorkspaceID: d.Workspace,
+		ProjectID:   d.ProjectID,
+		Projects:    ps,
+	})
+	if err != nil {
+		return d, err
+	}
+	if p != nil {
+		d.ProjectID = p.ID
+	} else {
+		d.ProjectID = ""
+	}
+
+	if d.ProjectID != "" {
+		ts, err := c.GetTasks(api.GetTasksParam{
+			Workspace:       d.Workspace,
+			ProjectID:       d.ProjectID,
+			Active:          true,
+			PaginationParam: api.AllPages(),
+		})
+		if err != nil {
+			return d, err
+		}
+
+		t, err := uiutil.AskTask(uiutil.AskTaskParam{
+			UI:          ui,
+			WorkspaceID: d.Workspace,
+			TaskID:      d.TaskID,
+			Tasks:       ts,
+		})
+		if err != nil {
+			return d, err
+		}
+		if t != nil {
+			d.TaskID = t.ID
+		} else {
+			d.TaskID = ""
+		}
+	} else {
+		d.TaskID = ""
+	}
+
+	b := false
+	if d.Billable != nil {
+		b = *d.Billable
+	}
+
+	b, err = ui.Confirm("Should be billable?", b)
+	if err != nil {
+		return d, err
+	}
+	d.Billable = &b
+
+	return d, err
 }

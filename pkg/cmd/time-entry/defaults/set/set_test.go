@@ -44,7 +44,7 @@ func TestNewCmdSet_ShouldAskInfo_WhenInteractive(t *testing.T) {
 				PaginationParam: api.AllPages(),
 			}).
 				Return([]dto.Project{
-					{ID: "p", Name: "first"},
+					{ID: "p1", Name: "first"},
 					{ID: "p2", Name: "second",
 						ClientID: "c", ClientName: "Myself"},
 					{ID: "p3", Name: "third"},
@@ -52,7 +52,7 @@ func TestNewCmdSet_ShouldAskInfo_WhenInteractive(t *testing.T) {
 
 			c.EXPECT().GetTasks(api.GetTasksParam{
 				Workspace:       "w",
-				ProjectID:       "p",
+				ProjectID:       "p3",
 				Active:          true,
 				PaginationParam: api.AllPages(),
 			}).
@@ -76,8 +76,9 @@ func TestNewCmdSet_ShouldAskInfo_WhenInteractive(t *testing.T) {
 			f.EXPECT().Client().Return(c, nil)
 
 			f.EXPECT().Config().Return(&mocks.SimpleConfig{
-				AllowNameForID: true,
-				Interactive:    true,
+				AllowNameForID:            true,
+				Interactive:               true,
+				InteractivePageSizeNumber: 7,
 			})
 
 			var d defaults.DefaultTimeEntry
