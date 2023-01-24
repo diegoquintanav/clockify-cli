@@ -10,6 +10,7 @@ import (
 	"github.com/lucassabreu/clockify-cli/pkg/cmdutil"
 	. "github.com/lucassabreu/clockify-cli/pkg/output/defaults"
 	"github.com/lucassabreu/clockify-cli/pkg/search"
+	"github.com/lucassabreu/clockify-cli/pkg/ui"
 	"github.com/lucassabreu/clockify-cli/strhlp"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -70,7 +71,7 @@ func NewCmdSet(
 				}
 
 				if f.Config().IsInteractive() {
-					if n, err = ask(n, f.Config(), c); err != nil {
+					if n, err = ask(n, f.Config(), c, f.UI()); err != nil {
 						return err
 					}
 				}
@@ -238,7 +239,12 @@ func updateIDsByNames(
 	return d, nil
 }
 
-func ask(d defaults.DefaultTimeEntry, cnf cmdutil.Config, c api.Client) (
+func ask(
+	d defaults.DefaultTimeEntry,
+	cnf cmdutil.Config,
+	c api.Client,
+	ui ui.UI,
+) (
 	defaults.DefaultTimeEntry,
 	error,
 ) {
