@@ -97,6 +97,7 @@ func TestReportWithRange(t *testing.T) {
 
 				c.On("GetProjects", api.GetProjectsParam{
 					Workspace:       "w",
+					Archived:        &bFalse,
 					PaginationParam: api.AllPages(),
 				}).Return([]dto.Project{}, errors.New("http error"))
 
@@ -125,6 +126,7 @@ func TestReportWithRange(t *testing.T) {
 
 				c.On("GetProjects", api.GetProjectsParam{
 					Workspace:       "w",
+					Archived:        &bFalse,
 					PaginationParam: api.AllPages(),
 				}).Return([]dto.Project{{Name: "right"}}, nil)
 
@@ -153,6 +155,7 @@ func TestReportWithRange(t *testing.T) {
 
 				c.On("GetProjects", api.GetProjectsParam{
 					Workspace:       "w",
+					Archived:        &bFalse,
 					PaginationParam: api.AllPages(),
 				}).Return([]dto.Project{{ID: "p", Name: "right"}}, nil)
 
