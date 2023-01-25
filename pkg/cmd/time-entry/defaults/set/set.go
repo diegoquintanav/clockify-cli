@@ -262,10 +262,9 @@ func ask(
 	}
 
 	p, err := uiutil.AskProject(uiutil.AskProjectParam{
-		UI:          ui,
-		WorkspaceID: d.Workspace,
-		ProjectID:   d.ProjectID,
-		Projects:    ps,
+		UI:        ui,
+		ProjectID: d.ProjectID,
+		Projects:  ps,
 	})
 	if err != nil {
 		return d, err
@@ -288,10 +287,9 @@ func ask(
 		}
 
 		t, err := uiutil.AskTask(uiutil.AskTaskParam{
-			UI:          ui,
-			WorkspaceID: d.Workspace,
-			TaskID:      d.TaskID,
-			Tasks:       ts,
+			UI:     ui,
+			TaskID: d.TaskID,
+			Tasks:  ts,
 		})
 		if err != nil {
 			return d, err
@@ -303,6 +301,34 @@ func ask(
 		}
 	} else {
 		d.TaskID = ""
+	}
+
+	var archived *bool
+	if !cnf.IsAllowArchivedTags() {
+		b := false
+		archived = &b
+	}
+
+	tags, err := c.GetTags(api.GetTagsParam{
+		Workspace:       d.Workspace,
+		Archived:        archived,
+		PaginationParam: api.AllPages(),
+	})
+	if err != nil {
+		return d, err
+	}
+
+	tags, err = uiutil.AskTags(uiutil.AskTagsParam{
+		UI:     ui,
+		TagIDs: d.TagIDs,
+		Tags:   tags,
+	})
+	if err != nil {
+		return d, err
+	}
+	d.TagIDs = make([]string, len(tags))
+	for i := range tags {
+		d.TagIDs[i] = tags[i].ID
 	}
 
 	b := false

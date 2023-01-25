@@ -10,12 +10,11 @@ import (
 
 // AskTaskParam informs what options to display while asking for a task
 type AskTaskParam struct {
-	UI          ui.UI
-	WorkspaceID string
-	TaskID      string
-	Tasks       []dto.Task
-	Force       bool
-	Message     string
+	UI      ui.UI
+	TaskID  string
+	Tasks   []dto.Task
+	Force   bool
+	Message string
 }
 
 const noTask = "No Task"

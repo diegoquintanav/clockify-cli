@@ -13,7 +13,6 @@ import (
 // AskProjectParam informs what options to display while asking for a project
 type AskProjectParam struct {
 	UI            ui.UI
-	WorkspaceID   string
 	ProjectID     string
 	Projects      []dto.Project
 	ForceProjects bool
